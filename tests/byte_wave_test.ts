@@ -8,7 +8,7 @@ import {
 import { assertEquals } from 'https://deno.land/std@0.90.0/testing/asserts.ts';
 
 Clarinet.test({
-    name: "Can register new student",
+    name: "Can register new student with skill levels",
     async fn(chain: Chain, accounts: Map<string, Account>) {
         const wallet1 = accounts.get('wallet_1')!;
         
@@ -20,7 +20,6 @@ Clarinet.test({
         
         block.receipts[0].result.expectOk();
         
-        // Verify student info
         let infoBlock = chain.mineBlock([
             Tx.contractCall('byte_wave', 'get-student-info', [
                 types.principal(wallet1.address)
@@ -28,31 +27,34 @@ Clarinet.test({
         ]);
         
         const studentData = infoBlock.receipts[0].result.expectOk().expectSome();
-        assertEquals(studentData.level, types.uint(1));
-        assertEquals(studentData.total-points, types.uint(0));
+        assertEquals(studentData['skill-levels'].algorithms, types.uint(1));
+        assertEquals(studentData['skill-levels'].web, types.uint(1));
+        assertEquals(studentData.badges.length, 0);
     }
 });
 
 Clarinet.test({
-    name: "Can complete challenge and earn points",
+    name: "Can complete challenge and earn skill points",
     async fn(chain: Chain, accounts: Map<string, Account>) {
         const deployer = accounts.get('deployer')!;
         const wallet1 = accounts.get('wallet_1')!;
         
-        // First register student
+        // Register student
         let registerBlock = chain.mineBlock([
             Tx.contractCall('byte_wave', 'register-student', [
                 types.ascii("test_student")
             ], wallet1.address)
         ]);
         
-        // Add challenge
+        // Add challenge with skill category
         let challengeBlock = chain.mineBlock([
             Tx.contractCall('byte_wave', 'add-challenge', [
                 types.uint(1),
-                types.ascii("Test Challenge"),
+                types.ascii("Algorithm Challenge"),
                 types.uint(100),
-                types.uint(1)
+                types.uint(1),
+                types.ascii("algorithms"),
+                types.uint(5)
             ], deployer.address)
         ]);
         
@@ -65,47 +67,15 @@ Clarinet.test({
         
         completeBlock.receipts[0].result.expectOk();
         
-        // Verify points
-        let pointsBlock = chain.mineBlock([
-            Tx.contractCall('byte_wave', 'get-student-points', [
+        // Verify skill levels
+        let skillBlock = chain.mineBlock([
+            Tx.contractCall('byte_wave', 'get-skill-levels', [
                 types.principal(wallet1.address)
             ], wallet1.address)
         ]);
         
-        assertEquals(pointsBlock.receipts[0].result.expectOk(), types.uint(100));
-    }
-});
-
-Clarinet.test({
-    name: "Can unlock achievement",
-    async fn(chain: Chain, accounts: Map<string, Account>) {
-        const wallet1 = accounts.get('wallet_1')!;
-        
-        // First register student
-        let registerBlock = chain.mineBlock([
-            Tx.contractCall('byte_wave', 'register-student', [
-                types.ascii("test_student")
-            ], wallet1.address)
-        ]);
-        
-        // Unlock achievement
-        let achievementBlock = chain.mineBlock([
-            Tx.contractCall('byte_wave', 'unlock-achievement', [
-                types.uint(1)
-            ], wallet1.address)
-        ]);
-        
-        achievementBlock.receipts[0].result.expectOk();
-        
-        // Verify achievement status
-        let statusBlock = chain.mineBlock([
-            Tx.contractCall('byte_wave', 'get-achievement-status', [
-                types.principal(wallet1.address),
-                types.uint(1)
-            ], wallet1.address)
-        ]);
-        
-        const achievementData = statusBlock.receipts[0].result.expectOk().expectSome();
-        assertEquals(achievementData.unlocked, true);
+        const skillData = skillBlock.receipts[0].result.expectOk();
+        assertEquals(skillData.algorithms, types.uint(6));
+        assertEquals(skillData.web, types.uint(1));
     }
 });
